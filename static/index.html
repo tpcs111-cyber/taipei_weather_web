@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台北天氣查詢系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 側邊欄樣式 */
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4ECDC4;
+        }
+
+        .sidebar-info {
+            background: #e6f7ff;
+            border-left: 4px solid #1890ff;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group input[type="date"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="date"]:focus {
+            outline: none;
+            border-color: #4ECDC4;
+        }
+
+        .date-range-info {
+            background: #f0fff4;
+            border-left: 4px solid #38a169;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .query-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #4ECDC4 0%, #44a08d 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .query-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
+        }
+
+        .query-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 主內容區域 */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 28px;
+        }
+
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .content-card h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+
+        /* 訊息樣式 */
+        .message {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .message.info {
+            background: #e6f7ff;
+            border-left: 4px solid #1890ff;
+            color: #0050b3;
+        }
+
+        .message.success {
+            background: #f0fff4;
+            border-left: 4px solid #38a169;
+            color: #22543d;
+        }
+
+        .message.error {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            color: #c53030;
+        }
+
+        /* 載入中動畫 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4ECDC4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 圖表容器 */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+
+        /* 表格樣式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table th {
+            background: #4ECDC4;
+            color: white;
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        /* 日期按鈕 */
+        .date-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .date-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 15px 10px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .date-btn:hover {
+            border-color: #4ECDC4;
+            background: #f0fffd;
+        }
+
+        .date-btn.active {
+            border-color: #4ECDC4;
+            background: #4ECDC4;
+            color: white;
+        }
+
+        .date-btn .date {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .date-btn .weekday {
+            font-size: 12px;
+            color: #718096;
+            margin: 5px 0;
+        }
+
+        .date-btn.active .weekday {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .date-btn .weather {
+            font-size: 11px;
+            color: #a0aec0;
+        }
+
+        .date-btn.active .weather {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* 每小時詳細區域 */
+        .hourly-section {
+            display: none;
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 2px solid #eee;
+        }
+
+        .hourly-section.active {
+            display: block;
+        }
+
+        /* 下載按鈕 */
+        .download-btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-decoration: none;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* 初始說明 */
+        .instructions {
+            line-height: 1.8;
+        }
+
+        .instructions h3 {
+            color: #4a5568;
+            margin: 20px 0 10px;
+        }
+
+        .instructions ul {
+            margin-left: 25px;
+        }
+
+        .instructions li {
+            margin: 8px 0;
+        }
+
+        /* 頁尾 */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+
+            .date-btn {
+                min-width: calc(50% - 10px);
+            }
+
+            .data-table {
+                font-size: 12px;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 側邊欄 -->
+        <aside class="sidebar">
+            <h2>📅 選擇日期範圍</h2>
+
+            <div class="sidebar-info">
+                選擇開始日期後，結束日期會自動設定為 7 天後
+            </div>
+
+            <div class="form-group">
+                <label for="startDate">開始日期</label>
+                <input type="date" id="startDate">
+            </div>
+
+            <div class="form-group">
+                <label for="endDate">結束日期</label>
+                <input type="date" id="endDate">
+            </div>
+
+            <div class="date-range-info" id="dateRangeInfo">
+                ✅ 已選擇 7 天的天氣資料
+            </div>
+
+            <div class="form-group">
+                <strong>選定日期範圍</strong>
+                <div class="sidebar-info" id="selectedRange" style="margin-top: 10px;">
+                    --
+                </div>
+            </div>
+
+            <button class="query-btn" id="queryBtn" onclick="fetchWeatherData()">
+                🔍 查詢天氣
+            </button>
+        </aside>
+
+        <!-- 主內容區域 -->
+        <main class="main-content">
+            <div class="header">
+                <h1>🌤️ 台北天氣查詢系統</h1>
+            </div>
+
+            <!-- 載入中 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在獲取天氣資料...</p>
+            </div>
+
+            <!-- 結果區域 -->
+            <div id="resultSection" style="display: none;">
+                <div class="message success" id="successMessage"></div>
+
+                <!-- 溫度圖表 -->
+                <div class="content-card">
+                    <h2>📈 溫度變化趨勢</h2>
+                    <div class="chart-container">
+                        <canvas id="temperatureChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 天氣資料表格 -->
+                <div class="content-card">
+                    <h2>📊 天氣資料總覽</h2>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table" id="weatherTable">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>星期</th>
+                                    <th>天氣狀況</th>
+                                    <th>降雨機率(%)</th>
+                                    <th>最低溫(°C)</th>
+                                    <th>最低溫時間</th>
+                                    <th>最高溫(°C)</th>
+                                    <th>最高溫時間</th>
+                                    <th>平均濕度(%)</th>
+                                    <th>最大風速(m/s)</th>
+                                    <th>風向</th>
+                                </tr>
+                            </thead>
+                            <tbody id="weatherTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 日期選擇按鈕 -->
+                <div class="content-card">
+                    <h2>🗓️ 點擊日期查看每小時詳細資料</h2>
+                    <div class="date-buttons" id="dateButtons"></div>
+
+                    <!-- 每小時詳細資料 -->
+                    <div class="hourly-section" id="hourlySection">
+                        <h3 id="hourlyTitle">🕐 每小時詳細天氣</h3>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="hourlyTempChart"></canvas>
+                        </div>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="hourlyRainChart"></canvas>
+                        </div>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="hourlyHumidityChart"></canvas>
+                        </div>
+                        <div style="overflow-x: auto; margin-top: 20px;">
+                            <table class="data-table" id="hourlyTable">
+                                <thead>
+                                    <tr>
+                                        <th>時間</th>
+                                        <th>天氣</th>
+                                        <th>溫度(°C)</th>
+                                        <th>降雨機率(%)</th>
+                                        <th>相對濕度(%)</th>
+                                        <th>風速(m/s)</th>
+                                        <th>風向</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="hourlyTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下載區域 -->
+                <div class="content-card">
+                    <h2>💾 下載資料</h2>
+                    <button class="download-btn" onclick="downloadCSV()">
+                        📥 下載 CSV 檔案
+                    </button>
+                </div>
+            </div>
+
+            <!-- 初始說明 -->
+            <div class="content-card" id="instructionsSection">
+                <div class="message info">
+                    👈 請在左側選擇日期範圍，然後點擊「查詢天氣」按鈕
+                </div>
+
+                <div class="instructions">
+                    <h3>使用說明</h3>
+                    <ul>
+                        <li>在左側邊欄選擇 <strong>開始日期</strong>，結束日期會自動設定為 7 天後</li>
+                        <li>可手動調整結束日期（限定 7 天以內）</li>
+                        <li>點擊 <strong>「🔍 查詢天氣」</strong> 按鈕</li>
+                        <li>查看溫度變化趨勢圖（標註最高/最低溫時間和天氣狀況）</li>
+                        <li>點擊任一日期按鈕，查看該日每小時詳細天氣變化</li>
+                        <li>可下載 CSV 檔案保存資料</li>
+                    </ul>
+
+                    <h3>功能特色</h3>
+                    <ul>
+                        <li>📅 自動計算 7 天日期範圍</li>
+                        <li>📈 互動式溫度趨勢圖</li>
+                        <li>🕐 每日每小時詳細資料展開</li>
+                        <li>📊 多維度天氣資料視覺化</li>
+                        <li>🔒 API Key 安全存放於後端</li>
+                    </ul>
+
+                    <h3>資料來源</h3>
+                    <ul>
+                        <li>中央氣象署開放資料平台</li>
+                        <li>資料更新頻率：即時</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer">
+                台北天氣查詢系統 | 資料來源：中央氣象署 | FastAPI 後端版本
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 全域變數
+        let weatherData = null;
+        let hourlyData = null;
+        let temperatureChart = null;
+        let hourlyTempChart = null;
+        let hourlyRainChart = null;
+        let hourlyHumidityChart = null;
+
+        // 初始化日期
+        function initDates() {
+            const today = new Date();
+            const endDate = new Date(today);
+            endDate.setDate(today.getDate() + 6);
+
+            document.getElementById('startDate').value = formatDateForInput(today);
+            document.getElementById('endDate').value = formatDateForInput(endDate);
+
+            updateDateRangeInfo();
+        }
+
+        // 格式化日期為 input 格式
+        function formatDateForInput(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        // 格式化日期為顯示格式
+        function formatDateForDisplay(dateStr) {
+            const date = new Date(dateStr);
+            return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        // 更新日期範圍資訊
+        function updateDateRangeInfo() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+            document.getElementById('dateRangeInfo').textContent = `✅ 已選擇 ${diffDays} 天的天氣資料`;
+            document.getElementById('selectedRange').textContent =
+                `${formatDateForDisplay(startDate)} 至 ${formatDateForDisplay(endDate)}`;
+        }
+
+        // 開始日期改變時自動設定結束日期
+        document.getElementById('startDate').addEventListener('change', function() {
+            const startDate = new Date(this.value);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            document.getElementById('endDate').value = formatDateForInput(endDate);
+            document.getElementById('endDate').min = this.value;
+            document.getElementById('endDate').max = formatDateForInput(endDate);
+            updateDateRangeInfo();
+        });
+
+        document.getElementById('endDate').addEventListener('change', updateDateRangeInfo);
+
+        // 獲取天氣資料（從後端 API）
+        async function fetchWeatherData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // 顯示載入中
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('instructionsSection').style.display = 'none';
+            document.getElementById('queryBtn').disabled = true;
+
+            try {
+                // 呼叫後端 API（不需要傳 API Key，後端會處理）
+                const response = await fetch(`/api/weather?start_date=${startDate}&end_date=${endDate}`);
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    weatherData = data.daily;
+                    hourlyData = data.hourly;
+                    displayResults(startDate, endDate);
+                } else {
+                    throw new Error(data.detail || 'API 回傳失敗');
+                }
+            } catch (error) {
+                console.error('錯誤:', error);
+                alert('獲取天氣資料時發生錯誤: ' + error.message);
+                document.getElementById('instructionsSection').style.display = 'block';
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('queryBtn').disabled = false;
+            }
+        }
+
+        // 顯示結果
+        function displayResults(startDate, endDate) {
+            document.getElementById('resultSection').style.display = 'block';
+            document.getElementById('successMessage').textContent =
+                `✅ 成功獲取 ${formatDateForDisplay(startDate)} 至 ${formatDateForDisplay(endDate)} 的天氣資料`;
+
+            drawTemperatureChart();
+            fillWeatherTable();
+            createDateButtons();
+        }
+
+        // 繪製溫度曲線圖
+        function drawTemperatureChart() {
+            const ctx = document.getElementById('temperatureChart').getContext('2d');
+
+            if (temperatureChart) {
+                temperatureChart.destroy();
+            }
+
+            const labels = weatherData.map(d => d.date);
+            const maxTemps = weatherData.map(d => d.max_temp);
+            const minTemps = weatherData.map(d => d.min_temp);
+
+            temperatureChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '最高溫',
+                            data: maxTemps,
+                            borderColor: '#FF6B6B',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            borderWidth: 3,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#FF6B6B',
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: '最低溫',
+                            data: minTemps,
+                            borderColor: '#4ECDC4',
+                            backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                            borderWidth: 3,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#4ECDC4',
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const idx = context.dataIndex;
+                                    const day = weatherData[idx];
+                                    if (context.dataset.label === '最高溫') {
+                                        return day.max_temp_time ? `時間: ${day.max_temp_time}` : '';
+                                    } else {
+                                        return day.min_temp_time ? `時間: ${day.min_temp_time}` : '';
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: '溫度 (°C)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 填充天氣表格
+        function fillWeatherTable() {
+            const tbody = document.getElementById('weatherTableBody');
+            tbody.innerHTML = '';
+
+            weatherData.forEach(day => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${day.date}</td>
+                    <td>${day.weekday}</td>
+                    <td>${day.weather || '無資料'}</td>
+                    <td>${day.rain_prob}</td>
+                    <td>${day.min_temp !== null ? day.min_temp : '無資料'}</td>
+                    <td>${day.min_temp_time || '-'}</td>
+                    <td>${day.max_temp !== null ? day.max_temp : '無資料'}</td>
+                    <td>${day.max_temp_time || '-'}</td>
+                    <td>${day.avg_humidity !== null ? day.avg_humidity : '無資料'}</td>
+                    <td>${day.max_wind !== null ? day.max_wind : '無資料'}</td>
+                    <td>${day.wind_dir || '無資料'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 建立日期按鈕
+        function createDateButtons() {
+            const container = document.getElementById('dateButtons');
+            container.innerHTML = '';
+
+            weatherData.forEach((day, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'date-btn';
+                btn.innerHTML = `
+                    <div class="date">${day.date}</div>
+                    <div class="weekday">${day.weekday}</div>
+                    <div class="weather">${day.weather || ''}</div>
+                `;
+                btn.onclick = () => showHourlyData(day.date, idx);
+                container.appendChild(btn);
+            });
+        }
+
+        // 顯示每小時資料
+        function showHourlyData(dateKey, btnIdx) {
+            document.querySelectorAll('.date-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', idx === btnIdx);
+            });
+
+            const section = document.getElementById('hourlySection');
+            section.classList.add('active');
+            document.getElementById('hourlyTitle').textContent = `🕐 ${dateKey} 每小時詳細天氣`;
+
+            const dayData = hourlyData[dateKey];
+            if (!dayData) {
+                section.innerHTML = '<p>沒有該日期的每小時資料</p>';
+                return;
+            }
+
+            const hours = Object.keys(dayData).sort();
+            const temps = hours.map(h => dayData[h].temp);
+            const rains = hours.map(h => dayData[h].rain);
+            const humidities = hours.map(h => dayData[h].humidity);
+
+            drawHourlyTempChart(hours, temps);
+            drawHourlyRainChart(hours, rains);
+            drawHourlyHumidityChart(hours, humidities);
+
+            const tbody = document.getElementById('hourlyTableBody');
+            tbody.innerHTML = '';
+
+            hours.forEach(hour => {
+                const data = dayData[hour];
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${hour}</td>
+                    <td>${data.weather || '無資料'}</td>
+                    <td>${data.temp !== null ? data.temp : '無資料'}</td>
+                    <td>${data.rain !== null ? data.rain : '無資料'}</td>
+                    <td>${data.humidity !== null ? data.humidity : '無資料'}</td>
+                    <td>${data.wind_speed !== null ? data.wind_speed.toFixed(1) : '無資料'}</td>
+                    <td>${data.wind_dir || '無資料'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 繪製每小時溫度圖
+        function drawHourlyTempChart(hours, temps) {
+            const ctx = document.getElementById('hourlyTempChart').getContext('2d');
+            if (hourlyTempChart) hourlyTempChart.destroy();
+
+            hourlyTempChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: '溫度 (°C)',
+                        data: temps,
+                        borderColor: '#FF6B6B',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { title: { display: true, text: '溫度 (°C)' } },
+                        x: { title: { display: true, text: '時間' } }
+                    }
+                }
+            });
+        }
+
+        // 繪製每小時降雨機率圖
+        function drawHourlyRainChart(hours, rains) {
+            const ctx = document.getElementById('hourlyRainChart').getContext('2d');
+            if (hourlyRainChart) hourlyRainChart.destroy();
+
+            hourlyRainChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: '降雨機率 (%)',
+                        data: rains,
+                        borderColor: '#4ECDC4',
+                        backgroundColor: 'rgba(78, 205, 196, 0.3)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { title: { display: true, text: '降雨機率 (%)' }, min: 0, max: 100 },
+                        x: { title: { display: true, text: '時間' } }
+                    }
+                }
+            });
+        }
+
+        // 繪製每小時濕度圖
+        function drawHourlyHumidityChart(hours, humidities) {
+            const ctx = document.getElementById('hourlyHumidityChart').getContext('2d');
+            if (hourlyHumidityChart) hourlyHumidityChart.destroy();
+
+            hourlyHumidityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: '相對濕度 (%)',
+                        data: humidities,
+                        borderColor: '#95E1D3',
+                        backgroundColor: 'rgba(149, 225, 211, 0.3)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { title: { display: true, text: '相對濕度 (%)' }, min: 0, max: 100 },
+                        x: { title: { display: true, text: '時間' } }
+                    }
+                }
+            });
+        }
+
+        // 下載 CSV
+        function downloadCSV() {
+            if (!weatherData) return;
+
+            const headers = ['日期', '星期', '天氣狀況', '降雨機率(%)', '最低溫度(°C)', '最低溫時間', '最高溫度(°C)', '最高溫時間', '平均濕度(%)', '最大風速(m/s)', '風向'];
+            const rows = weatherData.map(day => [
+                day.date,
+                day.weekday,
+                day.weather || '',
+                day.rain_prob,
+                day.min_temp !== null ? day.min_temp : '',
+                day.min_temp_time || '',
+                day.max_temp !== null ? day.max_temp : '',
+                day.max_temp_time || '',
+                day.avg_humidity !== null ? day.avg_humidity : '',
+                day.max_wind !== null ? day.max_wind : '',
+                day.wind_dir || ''
+            ]);
+
+            let csvContent = '\uFEFF' + headers.join(',') + '\n';
+            rows.forEach(row => {
+                csvContent += row.join(',') + '\n';
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const startDate = document.getElementById('startDate').value.replace(/-/g, '');
+            const endDate = document.getElementById('endDate').value.replace(/-/g, '');
+
+            link.href = URL.createObjectURL(blob);
+            link.download = `台北天氣_${startDate}_${endDate}.csv`;
+            link.click();
+        }
+
+        // 頁面載入時初始化
+        document.addEventListener('DOMContentLoaded', initDates);
+    </script>
+</body>
+</html>
